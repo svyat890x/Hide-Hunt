@@ -48,7 +48,17 @@ input[type=text]{width:100%;padding:16px;font-size:20px;border-radius:14px;borde
 #lang button{margin:0 0 6px;padding:12px;font-size:16px}
 #lang button:last-child{margin:0}
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#222;color:#fff;padding:12px 18px;border-radius:12px;display:none;z-index:60;max-width:90%;text-align:center}
+.map{position:relative;z-index:0;width:100%;height:min(58vh,480px);border-radius:14px;margin-bottom:12px;background:var(--card)}
+.pt{width:26px;height:26px;border-radius:50%;background:#e8590c;border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.pd{width:18px;height:18px;border-radius:50%;border:2px solid #fff}
+.pd b{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:13px;color:var(--tx);text-shadow:0 0 3px var(--card),0 0 3px var(--card),0 0 3px var(--card)}
+#oob{display:none;position:fixed;inset:0;z-index:55;background:rgba(220,20,20,.5);flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;font-size:24px;font-weight:800;padding:24px;pointer-events:none}
+#oob span{font-size:84px;line-height:1.1}
+#ban{display:none;position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:58;background:#c92a2a;color:#fff;padding:12px 16px;border-radius:12px;text-align:center;font-weight:700}
+#warn{display:none;position:fixed;left:12px;right:12px;bottom:calc(132px + env(safe-area-inset-bottom,0px));z-index:57;background:#e8590c;color:#fff;padding:12px 16px;border-radius:12px;text-align:center;font-weight:700}
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
@@ -63,7 +73,7 @@ input[type=text]{width:100%;padding:16px;font-size:20px;border-radius:14px;borde
 
 <div id="home" class="scr">
   <button id="gear" aria-label="Language"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-  <div id="lang"><button class="sec" data-l="uk">Українська</button><button class="sec" data-l="en">English</button></div>
+  <div id="lang"><button class="sec" data-l="uk">Українська</button><button class="sec" data-l="en">English</button><button class="sec" id="thBtn"></button></div>
   <h1>Hide <span>Hunt</span></h1>
   <button id="bJoin" data-i="join"></button>
   <button id="bHost" class="sec" data-i="host"></button>
@@ -88,6 +98,7 @@ input[type=text]{width:100%;padding:16px;font-size:20px;border-radius:14px;borde
     
   </div>
   <div class="card"><b data-i="dur"></b><div class="chips" style="align-items:center;margin-top:10px"><button class="chip" id="dM">−</button><b id="dv" style="flex:2;text-align:center;font-size:22px"></b><button class="chip" id="dP">+</button></div></div>
+  <div class="card"><b data-i="srT"></b><div class="chips" style="align-items:center;margin-top:10px"><button class="chip" id="sM">−</button><b id="sv" style="flex:2;text-align:center;font-size:22px"></b><button class="chip" id="sP">+</button></div></div>
   <div class="note" data-i="drag"></div>
   <div class="teams">
     <div class="team h" data-t="h"><h3 data-i="hiders"></h3><div id="th"></div></div>
@@ -98,7 +109,7 @@ input[type=text]{width:100%;padding:16px;font-size:20px;border-radius:14px;borde
 </div>
 <div id="draw" class="scr">
   <h2 data-i="drawT"></h2><div class="note" data-i="drawH"></div>
-  <canvas id="dcv" width="600" height="600" style="width:100%;aspect-ratio:1;border-radius:14px;touch-action:none;margin-bottom:12px"></canvas>
+  <div id="dmap" class="map"></div>
   <div class="chips" style="margin-bottom:12px"><button class="chip" id="bU" data-i="undo"></button><button class="chip" id="bC" data-i="clear"></button><button class="chip" id="bZm">−</button><button class="chip" id="bZp">+</button></div>
   <div class="note" id="gst"></div>
   
@@ -107,19 +118,26 @@ input[type=text]{width:100%;padding:16px;font-size:20px;border-radius:14px;borde
 </div>
 <div id="game" class="scr">
   <div class="top"><h2 style="margin:0" id="gteam"></h2><div class="pill" id="gcode"></div></div>
-  <canvas id="gcv" width="600" height="600" style="width:100%;aspect-ratio:1;border-radius:14px;margin-bottom:10px"></canvas>
+  <div id="gmap" class="map"></div>
   <div class="note" id="gmsg" style="font-weight:600"></div>
   <button id="bShow" style="display:none"></button>
   <button class="sec" id="gEnd" data-i="endGame" style="display:none"></button>
 </div>
+<div id="oob"><b id="oobT"></b><span id="oobS"></span></div>
+<div id="ban"></div>
+<div id="warn"></div>
 <div id="toast"></div>
 
 <script>
 const $=id=>document.getElementById(id);
 const T={
-uk:{join:'Приєднатись до гри',host:'Створити гру',name:'Твоє ім’я',codeJ:'ВВЕДИ КОД',codeH:'ПРИДУМАЙ КОД',next:'Далі',back:'Назад',nameErr:'Введи ім’я',codeErr:'Код мінімум 3 символи',nf:'Кімнату з таким кодом не знайдено',taken:'Цей код уже зайнятий, придумай інший',lobby:'Лобі',zone:'Зона гри',custom:'Свій',m:'м',drag:'Перетягуй імена пальцем між командами',hiders:'Hide',seekers:'Hunt',hostTag:'хост',start:'Почати гру',soon:'Далі зробимо сам процес гри: GPS, радар і пошук.',leave:'Вийти',closed:'Хост закрив кімнату',demo:'Демо-режим: лише цей пристрій',saveErr:'Не вдалося зберегти зміни',drawT:'Малюємо зону',drawH:'Торкайся поля, щоб ставити кути зони. Справжню карту підключимо в Android-версії.',undo:'Скасувати',clear:'Стерти',done:'Готово',cancel:'Відміна',minPts:'Постав щонайменше 3 точки',area:'Площа',gpsBtn:'Дозволити GPS',gpsOn:'GPS працює',gpsOff:'GPS недоступний на цьому пристрої',gpsDeny:'Доступ до GPS заборонено. Дозволь його в налаштуваннях.',permT:'Точна геолокація',permP:'Hide Hunt використовує твою точну геолокацію (GPS), щоб показувати зону гри та надсилати твою позицію у грі. Під час гри мисливці можуть на кілька секунд побачити приблизне місце твого знаходження.',allow:'Дозволити геолокацію',skip:'Не зараз',show:'Show',showing:'Показуємо',shown:'Мисливці щойно побачили твою приблизну геолокацію!',endGame:'Завершити гру',gHide:'Ти ховаєшся',gHunt:'Ти шукаєш',waitGps:'Чекаємо GPS…',outside:'Ти поза зоною гри!',needGps:'Увімкни GPS і дозволь доступ до геолокації, щоб почати гру',dur:'Тривалість раунду',min:'хв',timeUp:'Час вийшов!',needJoin:'Дозволь доступ до геолокації, щоб створити або приєднатись до гри'},
-en:{join:'Join Game',host:'Host Game',name:'Your name',codeJ:'ENTER CODE',codeH:'CREATE CODE',next:'Next',back:'Back',nameErr:'Enter your name',codeErr:'Code needs at least 3 characters',nf:'No room found with this code',taken:'This code is already taken, pick another',lobby:'Lobby',zone:'Game zone',custom:'Custom',m:'m',drag:'Drag names between teams with your finger',hiders:'Hide',seekers:'Hunt',hostTag:'host',start:'Start game',soon:'Next we will build the game itself: GPS, radar and searching.',leave:'Leave',closed:'The host closed the room',demo:'Demo mode: this device only',saveErr:'Could not save changes',drawT:'Draw the zone',drawH:'Tap the field to place zone corners. A real map comes with the Android version.',undo:'Undo',clear:'Clear',done:'Done',cancel:'Cancel',minPts:'Place at least 3 points',area:'Area',gpsBtn:'Allow GPS',gpsOn:'GPS is on',gpsOff:'GPS is not available on this device',gpsDeny:'GPS access was denied. Allow it in settings.',permT:'Precise location',permP:'Hide Hunt uses your precise GPS location to show the game zone and to send your position during the game. While playing, hunters can briefly see your approximate location.',allow:'Allow location',skip:'Not now',show:'Show',showing:'Showing',shown:'The hunters just saw your approximate location!',endGame:'End game',gHide:'You are hiding',gHunt:'You are hunting',waitGps:'Waiting for GPS…',outside:'You are outside the zone!',needGps:'Turn on GPS and allow location access to start the game',dur:'Round time',min:'min',timeUp:'Time’s up!',needJoin:'Allow location access to host or join a game'}};
+uk:{join:'Приєднатись до гри',host:'Створити гру',name:'Твоє ім’я',codeJ:'ВВЕДИ КОД',codeH:'ПРИДУМАЙ КОД',next:'Далі',back:'Назад',nameErr:'Введи ім’я',codeErr:'Код мінімум 3 символи',nf:'Кімнату з таким кодом не знайдено',taken:'Цей код уже зайнятий, придумай інший',lobby:'Лобі',zone:'Зона гри',custom:'Свій',m:'м',drag:'Перетягуй імена пальцем між командами',hiders:'Hide',seekers:'Hunt',hostTag:'хост',start:'Почати гру',soon:'Далі зробимо сам процес гри: GPS, радар і пошук.',leave:'Вийти',closed:'Хост закрив кімнату',demo:'Демо-режим: лише цей пристрій',saveErr:'Не вдалося зберегти зміни',drawT:'Малюємо зону',drawH:'Торкайся карти, щоб ставити кути зони. Кут можна перетягувати, торкнись кута, щоб видалити.',undo:'Скасувати',clear:'Стерти',done:'Готово',cancel:'Відміна',minPts:'Постав щонайменше 3 точки',area:'Площа',gpsBtn:'Дозволити GPS',gpsOn:'GPS працює',gpsOff:'GPS недоступний на цьому пристрої',gpsDeny:'Доступ до GPS заборонено. Дозволь його в налаштуваннях.',permT:'Точна геолокація',permP:'Hide Hunt використовує твою точну геолокацію (GPS), щоб показувати зону гри та надсилати твою позицію у грі. Під час гри мисливці можуть на кілька секунд побачити приблизне місце твого знаходження.',allow:'Дозволити геолокацію',skip:'Не зараз',show:'Show',showing:'Показуємо',shown:'Мисливці щойно побачили твою приблизну геолокацію!',endGame:'Завершити гру',gHide:'Ти ховаєшся',gHunt:'Ти шукаєш',waitGps:'Чекаємо GPS…',outside:'Ти поза зоною гри!',needGps:'Увімкни GPS і дозволь доступ до геолокації, щоб почати гру',dur:'Тривалість раунду',min:'хв',timeUp:'Час вийшов!',needJoin:'Дозволь доступ до геолокації, щоб створити або приєднатись до гри'},
+en:{join:'Join Game',host:'Host Game',name:'Your name',codeJ:'ENTER CODE',codeH:'CREATE CODE',next:'Next',back:'Back',nameErr:'Enter your name',codeErr:'Code needs at least 3 characters',nf:'No room found with this code',taken:'This code is already taken, pick another',lobby:'Lobby',zone:'Game zone',custom:'Custom',m:'m',drag:'Drag names between teams with your finger',hiders:'Hide',seekers:'Hunt',hostTag:'host',start:'Start game',soon:'Next we will build the game itself: GPS, radar and searching.',leave:'Leave',closed:'The host closed the room',demo:'Demo mode: this device only',saveErr:'Could not save changes',drawT:'Draw the zone',drawH:'Tap the map to place zone corners. Drag a corner to move it, tap a corner to remove it.',undo:'Undo',clear:'Clear',done:'Done',cancel:'Cancel',minPts:'Place at least 3 points',area:'Area',gpsBtn:'Allow GPS',gpsOn:'GPS is on',gpsOff:'GPS is not available on this device',gpsDeny:'GPS access was denied. Allow it in settings.',permT:'Precise location',permP:'Hide Hunt uses your precise GPS location to show the game zone and to send your position during the game. While playing, hunters can briefly see your approximate location.',allow:'Allow location',skip:'Not now',show:'Show',showing:'Showing',shown:'The hunters just saw your approximate location!',endGame:'End game',gHide:'You are hiding',gHunt:'You are hunting',waitGps:'Waiting for GPS…',outside:'You are outside the zone!',needGps:'Turn on GPS and allow location access to start the game',dur:'Round time',min:'min',timeUp:'Time’s up!',needJoin:'Allow location access to host or join a game'}};
 let lang='en';try{lang=localStorage.getItem('hh_lang')||'en'}catch(e){}
+T.uk.themeL='Світла тема';T.uk.themeD='Темна тема';T.en.themeL='Light theme';T.en.themeD='Dark theme';
+T.uk.srT='Радіус кола при Show';T.uk.leftZone='Ти покинув зону! Повернись, або програєш автоматично через';T.uk.lostSelf='Ти програв: вийшов із зони';T.uk.lostBan='покинув зону й програв';
+T.en.srT='Show circle radius';T.en.leftZone='You left the zone! Come back or you lose automatically in';T.en.lostSelf='You lost: left the zone';T.en.lostBan='left the zone and lost';
+T.uk.warnZone='До межі зони {n} м. Тут можна бути, але не йди далі: вийдеш із зони й програєш.';T.en.warnZone='{n} m to the zone edge. You can stay here, but don’t go further: leaving the zone means you lose.';
 const t=k=>T[lang][k];
 function applyLang(){
   document.documentElement.lang=lang;
@@ -128,10 +146,26 @@ function applyLang(){
   $('code').placeholder=t(mode==='join'?'codeJ':'codeH');
   $('etitle').textContent=t(mode==='join'?'join':'host');
   if(storeIsLocal)$('mode').textContent=t('demo');
+  themeUI();
   if(room)render();
 }
+let theme=null;try{theme=localStorage.getItem('hh_theme')}catch(e){}
+if(theme)document.documentElement.dataset.theme=theme;
+const isDark=()=>theme?theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+function mapTheme(m){
+  if(!m||!m.ready)return;const d=isDark();
+  m.setPaintProperty('bg','background-color',d?'#161e26':'#eef1f4');
+  m.setPaintProperty('w','fill-color',d?'#0c1217':'#cfdae4');
+  m.setPaintProperty('r','line-color',d?'#68788a':'#a9b4bf');
+}
+function themeUI(){$('thBtn').textContent=t(isDark()?'themeL':'themeD')}
+$('thBtn').onclick=()=>{
+  theme=isDark()?'light':'dark';document.documentElement.dataset.theme=theme;
+  try{localStorage.setItem('hh_theme',theme)}catch(e){}
+  $('lang').classList.remove('on');themeUI();mapTheme(dmap);mapTheme(gmap);
+};
 $('gear').onclick=()=>$('lang').classList.toggle('on');
-document.querySelectorAll('#lang button').forEach(b=>b.onclick=()=>{
+document.querySelectorAll('#lang button[data-l]').forEach(b=>b.onclick=()=>{
   lang=b.dataset.l;try{localStorage.setItem('hh_lang',lang)}catch(e){}
   $('lang').classList.remove('on');applyLang();
 });
@@ -184,7 +218,7 @@ function initFirebase(){
 
 const shp=r=>{try{return r&&r.shape&&r.shape.j?JSON.parse(r.shape.j):null}catch(e){return null}};
 function merge(a,b){
-  const z=(b.zt||0)>(a.zt||0)?b:a,pick=k=>{const x=a[k],y=b[k];return !x?y:!y?x:((y.t||0)>(x.t||0)?y:x)},out={host:a.host||b.host,radius:z.radius,custom:z.custom,shape:z.shape||null,zt:z.zt||0,dur:z.dur||30,game:pick('game')||null,show:pick('show')||null,players:{}};
+  const z=(b.zt||0)>(a.zt||0)?b:a,pick=k=>{const x=a[k],y=b[k];return !x?y:!y?x:((y.t||0)>(x.t||0)?y:x)},out={host:a.host||b.host,radius:z.radius,custom:z.custom,shape:z.shape||null,zt:z.zt||0,dur:z.dur||30,sr:z.sr||70,game:pick('game')||null,show:pick('show')||null,players:{}};
   const ids=new Set([...Object.keys(a.players||{}),...Object.keys(b.players||{})]);
   ids.forEach(id=>{const p=(a.players||{})[id],q=(b.players||{})[id];out.players[id]=!p?q:!q?p:((q.t||0)>(p.t||0)?q:p)});
   return out;
@@ -225,7 +259,7 @@ $('go').onclick=async()=>{
   render();
 };
 
-function goHome(){clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
+function goHome(){outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
 
 async function mutate(fn){
   if(!room)return;
@@ -256,7 +290,7 @@ function render(){
     if(mov)d.addEventListener('pointerdown',e=>startDrag(e,id,p.name));
     $(p.team==='h'?'th':'ts').appendChild(d);
   });
-  $('start').style.display=me.host?'block':'none';$('dv').textContent=(room.dur||30)+' '+t('min');$('dM').disabled=$('dP').disabled=!me.host;
+  $('start').style.display=me.host?'block':'none';$('dv').textContent=(room.dur||30)+' '+t('min');$('dM').disabled=$('dP').disabled=$('sM').disabled=$('sP').disabled=!me.host;$('sv').textContent=(room.sr||70)+' '+t('m');
 }
 function chip(txt,sel,f){
   const b=document.createElement('button');b.type='button';
@@ -281,52 +315,90 @@ let gpos=null,gwatch=null;
 function startGps(){
   if(!navigator.geolocation){$('gst').textContent=t('gpsOff');return}
   if(gwatch!==null)return;
-  gwatch=navigator.geolocation.watchPosition(p=>{
-    gpos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
-    if(!dorig&&!dpts.length)dorig={lat:gpos.lat,lon:gpos.lon};
-    $('gst').textContent=t('gpsOn')+' ±'+Math.round(gpos.acc)+' '+t('m');
-    
-    if($('draw').classList.contains('on'))drawCv();
-  },e=>{
-    navigator.geolocation.clearWatch(gwatch);gwatch=null;
-    $('gst').textContent=e.code===1?t('gpsDeny'):t('gpsOff');
-  },{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+  const go=hi=>{
+    gwatch=navigator.geolocation.watchPosition(p=>{
+      gpos={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};
+      if(!dorig&&!dpts.length)dorig={lat:gpos.lat,lon:gpos.lon};
+      $('gst').textContent=t('gpsOn')+' ±'+Math.round(gpos.acc)+' '+t('m');
+      if($('draw').classList.contains('on'))drawCv();
+    },e=>{
+      navigator.geolocation.clearWatch(gwatch);
+      if(e.code===1){gwatch=null;$('gst').textContent=t('gpsDeny');return}
+      gwatch=-1;$('gst').textContent=t('waitGps');
+      setTimeout(()=>{gwatch=null;go(false)},1500);
+    },{enableHighAccuracy:hi,maximumAge:5000,timeout:hi?15000:30000});
+  };
+  go(true);
 }
 
+const KR=Math.PI/180*6371000;
+const m2ll=(x,y,o)=>[o.lon+x/(KR*Math.cos(o.lat*Math.PI/180)),o.lat+y/KR];
+const ll2m=(la,lo,o)=>[Math.round((lo-o.lon)*KR*Math.cos(o.lat*Math.PI/180)),Math.round((la-o.lat)*KR)];
+const circ=(la,lo,r)=>{const a=[];for(let i=0;i<=48;i++){const t=i/48*2*Math.PI;a.push(m2ll(r*Math.cos(t),r*Math.sin(t),{lat:la,lon:lo}))}return a};
+const FC=f=>({type:'FeatureCollection',features:f});
+const poly=ll=>ll.length>2?FC([{type:'Feature',geometry:{type:'Polygon',coordinates:[[...ll,ll[0]]]}}]):ll.length>1?FC([{type:'Feature',geometry:{type:'LineString',coordinates:ll}}]):FC([]);
+const bnd=ll=>{const b=new maplibregl.LngLatBounds(ll[0],ll[0]);ll.forEach(q=>b.extend(q));return b};
+// стиль: темна карта без кольорів, дороги + 3D-будинки (OpenFreeMap)
+const STYLE={version:8,sources:{o:{type:'vector',url:'https://tiles.openfreemap.org/planet',attribution:'<a href="https://openfreemap.org">OpenFreeMap</a> © OpenMapTiles © OpenStreetMap'}},layers:[
+{id:'bg',type:'background',paint:{'background-color':'#161e26'}},
+{id:'w',type:'fill',source:'o','source-layer':'water',paint:{'fill-color':'#0c1217'}},
+{id:'r',type:'line',source:'o','source-layer':'transportation',filter:['match',['get','class'],['rail','transit','ferry'],false,true],layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#68788a','line-width':['interpolate',['exponential',1.5],['zoom'],10,.6,15,3,19,14]}}]};
+function mkMap(el,cb){
+  const m=new maplibregl.Map({container:el,style:STYLE,center:[31.5,49],zoom:5,pitch:0,maxPitch:0,attributionControl:{compact:true}});
+  m.on('load',()=>{
+    m.addSource('z',{type:'geojson',data:FC([])});
+    m.addLayer({id:'zf',type:'fill',source:'z',paint:{'fill-color':'#e8590c','fill-opacity':.2}});
+    m.addLayer({id:'zl',type:'line',source:'z',paint:{'line-color':'#ff8a3d','line-width':4}});
+    m.addSource('fz',{type:'geojson',data:FC([])});
+    m.addLayer({id:'fzf',type:'fill',source:'fz',paint:{'fill-color':'#2b7de9','fill-opacity':.28}});
+    m.addLayer({id:'fzl',type:'line',source:'fz',paint:{'line-color':'#5aa0ff','line-width':3}});
+    m.addSource('me',{type:'geojson',data:FC([])});
+    m.addLayer({id:'mea',type:'fill',source:'me',filter:['==','$type','Polygon'],paint:{'fill-color':'#1e78ff','fill-opacity':.18}});
+    m.addLayer({id:'med',type:'circle',source:'me',filter:['==','$type','Point'],paint:{'circle-radius':8,'circle-color':'#1e78ff','circle-stroke-width':3,'circle-stroke-color':'#fff'}});
+    m.ready=true;mapTheme(m);cb&&cb();
+  });
+  return m;
+}
+const setMe=m=>{if(!m.ready||!gpos)return;m.getSource('me').setData(FC([{type:'Feature',geometry:{type:'Point',coordinates:[gpos.lon,gpos.lat]}},{type:'Feature',geometry:{type:'Polygon',coordinates:[circ(gpos.lat,gpos.lon,gpos.acc)]}}]))};
+const mkEl=(c,n)=>{const d=document.createElement('div');d.className='pd';d.style.background=c;if(n){const b=document.createElement('b');b.textContent=n;d.appendChild(b)}return d};
+let dmap=null,dmk=[],dcentered=false,dragT=0;
 function openDraw(){
   if(!me.host)return;
-  const S0=shp(room);dpts=S0&&S0.pts?S0.pts.map(q=>q.slice()):[];dview=1000;dorig=S0?S0.orig:null;
-  show('draw');drawCv();
-  startGps();if(!dorig&&gpos)dorig={lat:gpos.lat,lon:gpos.lon};
+  const S0=shp(room);dpts=S0&&S0.pts?S0.pts.map(q=>q.slice()):[];dorig=S0?S0.orig:null;
+  if(!dorig)dpts=[];
+  show('draw');startGps();dcentered=false;
+  if(!window.maplibregl){toast('Map failed to load. Check internet');return}
+  if(!dmap){
+    dmap=mkMap($('dmap'),()=>drawCv(true));
+    dmap.on('click',e=>{
+      if(!dmap.ready)return;
+      if(!dorig)dorig={lat:e.lngLat.lat,lon:e.lngLat.lng};
+      dpts.push(ll2m(e.lngLat.lat,e.lngLat.lng,dorig));drawCv();
+    });
+  }else setTimeout(()=>{dmap.resize();drawCv(true)},60);
 }
-function drawCv(){
-  const cv=$('dcv'),c=cv.getContext('2d'),W=cv.width,h=W/2,s=W/dview,cs=getComputedStyle(document.documentElement);
-  c.fillStyle=cs.getPropertyValue('--card');c.fillRect(0,0,W,W);
-  const step=dview<=600?50:dview<=1000?100:dview<=2000?250:500;
-  c.strokeStyle=cs.getPropertyValue('--grid');c.lineWidth=1;
-  for(let m=-Math.floor(dview/2/step)*step;m<=dview/2;m+=step){const q=h+m*s;c.beginPath();c.moveTo(q,0);c.lineTo(q,W);c.moveTo(0,q);c.lineTo(W,q);c.stroke()}
-  c.fillStyle=cs.getPropertyValue('--mut');c.font='22px system-ui';c.fillText(step+' '+t('m'),10,28);
-  if(dpts.length){
-    c.beginPath();dpts.forEach((q,i)=>{const x=h+q[0]*s,y=h-q[1]*s;i?c.lineTo(x,y):c.moveTo(x,y)});
-    if(dpts.length>2){c.closePath();c.fillStyle='rgba(232,89,12,.25)';c.fill()}
-    c.strokeStyle='#e8590c';c.lineWidth=4;c.stroke();
-    dpts.forEach(q=>{c.beginPath();c.arc(h+q[0]*s,h-q[1]*s,9,0,7);c.fillStyle='#e8590c';c.fill()});
+function drawCv(fit){
+  if(!dmap||!dmap.ready)return;
+  dmk.forEach(m=>m.remove());dmk=[];
+  const ll=dorig?dpts.map(q=>m2ll(q[0],q[1],dorig)):[];
+  dmap.getSource('z').setData(poly(ll));
+  ll.forEach((p,i)=>{
+    const e=document.createElement('div');e.className='pt';
+    const mk=new maplibregl.Marker({element:e,draggable:true}).setLngLat(p).addTo(dmap);
+    mk.on('dragend',()=>{dragT=Date.now();const a=mk.getLngLat();dpts[i]=ll2m(a.lat,a.lng,dorig);drawCv()});
+    e.addEventListener('click',ev=>{ev.stopPropagation();if(Date.now()-dragT<400)return;dpts.splice(i,1);drawCv()});
+    dmk.push(mk);
+  });
+  if(fit&&ll.length){dmap.fitBounds(bnd(ll),{padding:60,maxZoom:18});dcentered=true}
+  if(gpos){
+    setMe(dmap);
+    if(!dcentered&&!ll.length){dmap.jumpTo({center:[gpos.lon,gpos.lat],zoom:17});dcentered=true}
   }
-  let ux=0,uy=0,ur=10;
-  if(gpos&&dorig){const k=Math.PI/180;ux=(gpos.lon-dorig.lon)*k*6371000*Math.cos(dorig.lat*k);uy=(gpos.lat-dorig.lat)*k*6371000;ur=Math.max(10,gpos.acc*s)}
-  c.fillStyle='rgba(30,120,255,.2)';c.beginPath();c.arc(h+ux*s,h-uy*s,ur,0,7);c.fill();
-  c.fillStyle='#1e78ff';c.beginPath();c.arc(h+ux*s,h-uy*s,10,0,7);c.fill();
 }
-$('dcv').addEventListener('pointerdown',e=>{
-  const cv=$('dcv'),r=cv.getBoundingClientRect(),W=cv.width,s=W/dview;
-  const x=(e.clientX-r.left)/r.width*W,y=(e.clientY-r.top)/r.height*W;
-  const k=dpts.findIndex(q=>Math.hypot(W/2+q[0]*s-x,W/2-q[1]*s-y)<28);
-  if(k>=0)dpts.splice(k,1);else dpts.push([Math.round((x-W/2)/s),Math.round(-(y-W/2)/s)]);drawCv();
-});
 $('bU').onclick=()=>{dpts.pop();drawCv()};
 $('bC').onclick=()=>{dpts=[];drawCv()};
-$('bZm').onclick=()=>{const i=VIEWS.indexOf(dview);if(i<VIEWS.length-1){dview=VIEWS[i+1];drawCv()}};
-$('bZp').onclick=()=>{const i=VIEWS.indexOf(dview);if(i>0){dview=VIEWS[i-1];drawCv()}};
+$('bZm').onclick=()=>dmap&&dmap.zoomOut();
+$('bZp').onclick=()=>dmap&&dmap.zoomIn();
 $('dCancel').onclick=()=>show('lobby');
 $('dDone').onclick=()=>{
   if(dpts.length<3){toast(t('minPts'));return}
@@ -368,6 +440,12 @@ function inside(x,y){
   if(S&&S.pts){let ins=false;const p=S.pts;for(let i=0,j=p.length-1;i<p.length;j=i++){if((p[i][1]>y)!==(p[j][1]>y)&&x<(p[j][0]-p[i][0])*(y-p[i][1])/(p[j][1]-p[i][1])+p[i][0])ins=!ins}return ins}
   return Math.hypot(x,y)<=room.radius;
 }
+const WARN_M=10;
+function edgeD(x,y){
+  const S=room.custom?shp(room):null;
+  if(S&&S.pts){let m=1e9;const p=S.pts;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length],dx=b[0]-a[0],dy=b[1]-a[1],l=dx*dx+dy*dy||1,u=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/l));m=Math.min(m,Math.hypot(x-a[0]-u*dx,y-a[1]-u*dy))}return m}
+  return room.radius-Math.hypot(x,y);
+}
 function syncGame(){
   if(!room)return;
   const g=room.game,on=g&&g.on,cur=document.querySelector('.scr.on'),scr=cur&&cur.id;
@@ -380,54 +458,74 @@ function syncGame(){
   }
 }
 function enterGame(){
+  lostSeen={};Object.entries(room.players).forEach(([id,p])=>{if(p.lost)lostSeen[id]=1});outSince=0;
   lastShowT=room.show?room.show.t:0;showUntil=0;ended=false;
   $('gcode').textContent=code;$('gEnd').style.display=me.host?'block':'none';
   show('game');startGps();
   clearInterval(gtimer);clearInterval(ptimer);
   gtimer=setInterval(gameTick,500);ptimer=setInterval(pushPos,5000);pushPos();gameTick();
 }
-function leaveGame(){clearInterval(gtimer);clearInterval(ptimer);show('lobby');render()}
+function leaveGame(){outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);show('lobby');render()}
 function pushPos(){
   if(!gpos||!room||!room.game||!room.game.on)return;
   const now=Date.now();
-  mutate(x=>{const p=x.players[me.id];if(p){p.lat=gpos.lat;p.lon=gpos.lon;p.t=now}});
+  mutate(x=>{const p=x.players[me.id];if(p&&!p.lost){p.lat=gpos.lat;p.lon=gpos.lon;p.t=now}});
 }
+let gmap=null,gmk=[],gkey='',gsig='',outSince=0,lostSeen={};
+const oobHide=()=>{$('oob').style.display='none';$('warn').style.display='none'};
 function gameTick(){
   if(!room||!room.game||!room.game.on)return;
-  const cv=$('gcv'),c=cv.getContext('2d'),W=cv.width,h=W/2,cs=getComputedStyle(document.documentElement),C=room.game.c,mt=myTeam();
-  c.fillStyle=cs.getPropertyValue('--card');c.fillRect(0,0,W,W);
-  const S=room.custom?shp(room):null;
-  let R=room.radius;if(S&&S.pts)R=Math.max(50,...S.pts.map(q=>Math.hypot(q[0],q[1])));
-  const s=(W*0.42)/R;
-  c.strokeStyle=cs.getPropertyValue('--grid');c.lineWidth=1;
-  [0.5,1].forEach(k=>{c.beginPath();c.arc(h,h,R*k*s,0,7);c.stroke()});
-  c.beginPath();c.moveTo(h,0);c.lineTo(h,W);c.moveTo(0,h);c.lineTo(W,h);c.stroke();
-  c.strokeStyle='#e8590c';c.lineWidth=4;c.setLineDash([12,8]);c.beginPath();
-  if(S&&S.pts){S.pts.forEach((q,i)=>{const x=h+q[0]*s,y=h-q[1]*s;if(i)c.lineTo(x,y);else c.moveTo(x,y)});c.closePath()}
-  else c.arc(h,h,R*s,0,7);
-  c.stroke();c.setLineDash([]);
+  const C=room.game.c,mt=myTeam(),S=room.custom?shp(room):null;
   let msg=t('waitGps');
-  if(C){
-    const now=Date.now(),showing=now<showUntil;
-    Object.entries(room.players).forEach(([id,p])=>{
-      if(id===me.id||p.left||p.lat==null)return;
-      const [x,y]=rel(p,C);
-      if(p.team===mt){
-        c.fillStyle=mt==='s'?'#d9480f':'#2b7de9';c.beginPath();c.arc(h+x*s,h-y*s,9,0,7);c.fill();
-        c.fillStyle=cs.getPropertyValue('--tx');c.font='bold 22px system-ui';c.textAlign='center';c.fillText(p.name,h+x*s,h-y*s-16);
-      }else if(mt==='s'&&showing&&p.team==='h'){
-        const sd=hash(id+(room.show?room.show.t:0)),a=(sd%360)*Math.PI/180,d=(sd>>3)%40;
-        const fx=h+(x+Math.cos(a)*d)*s,fy=h-(y+Math.sin(a)*d)*s;
-        c.fillStyle='rgba(43,125,233,.28)';c.strokeStyle='#2b7de9';c.lineWidth=3;
-        c.beginPath();c.arc(fx,fy,Math.max(18,70*s),0,7);c.fill();c.stroke();
-        c.fillStyle=cs.getPropertyValue('--tx');c.font='bold 22px system-ui';c.textAlign='center';c.fillText(p.name,fx,fy+7);
+  Object.entries(room.players).forEach(([id,p])=>{if(p.lost&&!lostSeen[id]){lostSeen[id]=1;const b=$('ban');b.textContent=p.name+' '+t('lostBan');b.style.display='block';clearTimeout(b.h);b.h=setTimeout(()=>b.style.display='none',7000)}});
+  if(window.maplibregl&&C){
+    if(!gmap)gmap=mkMap($('gmap'));
+    if(gmap.ready){
+      const key=room.game.t+':'+(room.zt||0);
+      if(gkey!==key){
+        gkey=key;gsig='';gmap.resize();
+        const ll=S&&S.pts?S.pts.map(q=>m2ll(q[0],q[1],C)):circ(C.lat,C.lon,room.radius);
+        gmap.getSource('z').setData(poly(ll));gmap.fitBounds(bnd(ll),{padding:40});
       }
-    });
-    if(gpos){
-      const [ux,uy]=rel(gpos,C);
-      c.fillStyle='rgba(30,120,255,.2)';c.beginPath();c.arc(h+ux*s,h-uy*s,Math.max(10,gpos.acc*s),0,7);c.fill();
-      c.fillStyle='#1e78ff';c.strokeStyle='#fff';c.lineWidth=4;c.beginPath();c.arc(h+ux*s,h-uy*s,11,0,7);c.fill();c.stroke();
-      msg=inside(ux,uy)?t(mt==='s'?'gHunt':'gHide'):t('outside');
+      const showing=Date.now()<showUntil,items=[],SR=room.game.sr||70;
+      Object.entries(room.players).forEach(([id,p])=>{
+        if(p.left)return;
+        if(p.lost){items.push(['x',p.name,p.lost.lon,p.lost.lat]);return}
+        if(id===me.id||p.lat==null)return;
+        if(p.team===mt)items.push(['t',p.name,p.lon,p.lat]);
+        else if(mt==='s'&&showing&&p.team==='h'){
+          const [x,y]=rel(p,C),sd=hash(id+(room.show?room.show.t:0)),a=(sd%360)*Math.PI/180,d=(sd>>3)%Math.max(1,Math.round(SR*.7));
+          const q=m2ll(x+Math.cos(a)*d,y+Math.sin(a)*d,C);items.push(['f',p.name,q[0],q[1]]);
+        }
+      });
+      const sig=JSON.stringify(items)+mt;
+      if(sig!==gsig){
+        gsig=sig;gmk.forEach(m=>m.remove());gmk=[];
+        const fz=[];
+        items.forEach(([k,n,lo,la])=>{
+          const f=k==='f';
+          if(f)fz.push({type:'Feature',geometry:{type:'Polygon',coordinates:[circ(la,lo,SR)]}});
+          const el=mkEl(f?'transparent':k==='x'?'#e03131':(mt==='s'?'#d9480f':'#2b7de9'),k==='x'?'✖ '+n:n);if(f)el.style.border='0';
+          gmk.push(new maplibregl.Marker({element:el}).setLngLat([lo,la]).addTo(gmap));
+        });
+        gmap.getSource('fz').setData(FC(fz));
+      }
+      if(gpos){
+        setMe(gmap);
+        const [ux,uy]=rel(gpos,C),inn=inside(ux,uy),mine=room.players[me.id];
+        $('warn').style.display='none';
+        if(mine&&mine.lost){msg=t('lostSelf');oobHide()}
+        else{
+          msg=inn?t(mt==='s'?'gHunt':'gHide'):t('outside');
+          if(inn){outSince=0;oobHide();const d=edgeD(ux,uy);if(d<=WARN_M){$('warn').textContent=t('warnZone').replace('{n}',Math.max(1,Math.round(d)));$('warn').style.display='block'}}
+          else if(gpos.acc<=60){
+            if(!outSince)outSince=Date.now();
+            const left=Math.ceil(5-(Date.now()-outSince)/1000);
+            if(left>0){$('oobT').textContent=t('leftZone');$('oobS').textContent=left;$('oob').style.display='flex'}
+            else{outSince=0;oobHide();mutate(x=>{const p=x.players[me.id];if(p&&!p.lost){p.lost={lat:gpos.lat,lon:gpos.lon,t:Date.now()};p.t=Date.now()}})}
+          }
+        }
+      }
     }
   }
   const gg=room.game,rem=Math.max(0,(gg.dur||30)*60000-(Date.now()-gg.t));
@@ -450,9 +548,12 @@ $('start').onclick=()=>{
   if(!gpsOk()){toast(t('needGps'));startGps();return}
   const S=room.custom?shp(room):null;
   const c=(S&&S.orig)||(gpos?{lat:gpos.lat,lon:gpos.lon}:null);
-  mutate(x=>{x.game={on:true,t:Date.now(),c,dur:room.dur||30}});
+  mutate(x=>{x.game={on:true,t:Date.now(),c,dur:room.dur||30,sr:room.sr||70}});
 };
 $('gEnd').onclick=()=>mutate(x=>{x.game={on:false,t:Date.now(),c:null}});
+const stp=v=>v<100?10:25;
+$('sM').onclick=()=>mutate(x=>{const v=x.sr||70;x.sr=Math.max(20,v-stp(v-1));x.zt=Date.now()});
+$('sP').onclick=()=>mutate(x=>{const v=x.sr||70;x.sr=Math.min(500,v+stp(v));x.zt=Date.now()});
 $('dM').onclick=()=>mutate(x=>{x.dur=Math.max(5,(x.dur||30)-5);x.zt=Date.now()});
 $('dP').onclick=()=>mutate(x=>{x.dur=Math.min(180,(x.dur||30)+5);x.zt=Date.now()});
 $('leave').onclick=async()=>{
