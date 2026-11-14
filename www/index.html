@@ -274,7 +274,7 @@ $('go').onclick=async()=>{
   render();
 };
 
-function goHome(){$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
+function goHome(){stopGps();$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
 
 async function mutate(fn){
   if(!room)return;
@@ -327,6 +327,8 @@ function drawPrev(sh){
   c.fillStyle='rgba(232,89,12,.3)';c.fill();c.strokeStyle='#e8590c';c.lineWidth=4;c.stroke();
 }
 let gpos=null,gwatch=null;
+function stopGps(){try{if(gwatch!==null&&gwatch!==-1)navigator.geolocation.clearWatch(gwatch)}catch(e){}gwatch=null}
+function autoStop(){const c=document.querySelector('.scr.on'),sc=c&&c.id;if(sc==='perm'||sc==='home'||sc==='entry'||(sc==='lobby'&&!me.host))stopGps()}
 function startGps(){
   if(!navigator.geolocation){$('gst').textContent=t('gpsOff');return}
   if(gwatch!==null)return;
@@ -336,6 +338,7 @@ function startGps(){
       if(!dorig&&!dpts.length)dorig={lat:gpos.lat,lon:gpos.lon};
       $('gst').textContent=t('gpsOn')+' ±'+Math.round(gpos.acc)+' '+t('m');
       if($('draw').classList.contains('on'))drawCv();
+      autoStop();
     },e=>{
       navigator.geolocation.clearWatch(gwatch);
       if(e.code===1){gwatch=null;$('gst').textContent=t('gpsDeny');return}
@@ -359,7 +362,7 @@ const STYLE={version:8,sources:{o:{type:'vector',url:'https://tiles.openfreemap.
 {id:'w',type:'fill',source:'o','source-layer':'water',paint:{'fill-color':'#0c1217'}},
 {id:'r',type:'line',source:'o','source-layer':'transportation',filter:['match',['get','class'],['rail','transit','ferry'],false,true],layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#68788a','line-width':['interpolate',['exponential',1.5],['zoom'],10,.6,15,3,19,14]}}]};
 function mkMap(el,cb){
-  const m=new maplibregl.Map({container:el,style:STYLE,center:[31.5,49],zoom:5,pitch:0,maxPitch:0,attributionControl:{compact:true}});
+  const m=new maplibregl.Map({container:el,style:STYLE,center:[31.5,49],zoom:5,pitch:0,maxPitch:0,fadeDuration:0,antialias:false,pixelRatio:Math.min(window.devicePixelRatio||1,1.5),attributionControl:{compact:true}});
   const initM=()=>{
     if(m.ready)return;
     m.addSource('z',{type:'geojson',data:FC([])});
@@ -478,16 +481,18 @@ function syncGame(){
 }
 function enterGame(){
   lostSeen={};Object.entries(room.players).forEach(([id,p])=>{if(p.lost)lostSeen[id]=1;if(p.caught)lostSeen['c'+id]=1});outSince=0;
-  lastShowT=room.show?room.show.t:0;lastReqT=room.req?room.req.t:0;showUntil=0;ended=false;
+  lastShowT=room.show?room.show.t:0;lastReqT=room.req?room.req.t:0;lastPush=null;showUntil=0;ended=false;
   $('gcode').textContent=code;$('gEnd').style.display=me.host?'block':'none';
   show('game');startGps();
   clearInterval(gtimer);clearInterval(ptimer);
-  gtimer=setInterval(gameTick,500);ptimer=setInterval(pushPos,5000);pushPos();gameTick();
+  gtimer=setInterval(gameTick,1000);ptimer=setInterval(pushPos,10000);pushPos();gameTick();
 }
-function leaveGame(){$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);show('lobby');render();showResult()}
+function leaveGame(){if(!me.host)stopGps();$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);show('lobby');render();showResult()}
 function pushPos(){
   if(!gpos||!room||!room.game||!room.game.on)return;
   const now=Date.now();
+  if(lastPush&&now-lastPush.t<30000&&Math.hypot((gpos.lat-lastPush.lat)*111320,(gpos.lon-lastPush.lon)*111320*Math.cos(gpos.lat*Math.PI/180))<6)return;
+  lastPush={lat:gpos.lat,lon:gpos.lon,t:now};
   mutate(x=>{const p=x.players[me.id];if(p&&!p.lost&&!p.caught){p.lat=gpos.lat;p.lon=gpos.lon;p.t=now}});
 }
 let gmap=null,gmk=[],gkey='',gsig='',outSince=0,lostSeen={};
@@ -576,7 +581,7 @@ $('start').onclick=()=>{
   const c=(S&&S.orig)||(gpos?{lat:gpos.lat,lon:gpos.lon}:null);
   mutate(x=>{Object.values(x.players).forEach(p=>{delete p.lost;delete p.caught;p.t=Date.now()});x.game={on:true,t:Date.now(),c,dur:room.dur||30,sr:room.sr||70}});
 };
-let lastReqT=0,kickId=null;
+let lastReqT=0,kickId=null,lastPush=null;
 function openKick(id,name){kickId=id;$('kickT').textContent=t('kickQ').replace('{n}',name);$('kickM').style.display='flex'}
 function kickCheck(){const mp=room&&room.players[me.id];if(mp&&mp.kicked&&!me.host){toast(t('kicked'));goHome()}}
 $('kNo').onclick=()=>{$('kickM').style.display='none'};
@@ -649,6 +654,11 @@ $('leave').onclick=async()=>{
   }catch(e){}
 };
 window.addEventListener('pagehide',()=>{if(me.host&&code)try{store.del(code)}catch(e){}});
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){stopGps();return}
+  const c=document.querySelector('.scr.on'),sc=c&&c.id;
+  if(sc==='game'||sc==='draw'||(sc==='lobby'&&me.host))startGps();
+});
 applyLang();
 </script>
 </body>
