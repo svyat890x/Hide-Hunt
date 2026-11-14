@@ -232,8 +232,9 @@ function initFirebase(){
 })();
 
 const shp=r=>{try{return r&&r.shape&&r.shape.j?JSON.parse(r.shape.j):null}catch(e){return null}};
+const hbm=(x,y)=>{const o={...(x||{})};Object.entries(y||{}).forEach(([k,v])=>{if(!(o[k]>=v))o[k]=v});return o};
 function merge(a,b){
-  const z=(b.zt||0)>(a.zt||0)?b:a,pick=k=>{const x=a[k],y=b[k];return !x?y:!y?x:((y.t||0)>(x.t||0)?y:x)},out={host:a.host||b.host,radius:z.radius,custom:z.custom,shape:z.shape||null,zt:z.zt||0,dur:z.dur||30,sr:z.sr||70,game:pick('game')||null,show:pick('show')||null,req:pick('req')||null,players:{}};
+  const z=(b.zt||0)>(a.zt||0)?b:a,pick=k=>{const x=a[k],y=b[k];return !x?y:!y?x:((y.t||0)>(x.t||0)?y:x)},out={host:a.host||b.host,radius:z.radius,custom:z.custom,shape:z.shape||null,zt:z.zt||0,dur:z.dur||30,sr:z.sr||70,game:pick('game')||null,show:pick('show')||null,req:pick('req')||null,hb:hbm(a.hb,b.hb),players:{}};
   const ids=new Set([...Object.keys(a.players||{}),...Object.keys(b.players||{})]);
   ids.forEach(id=>{const p=(a.players||{})[id],q=(b.players||{})[id];out.players[id]=!p?q:!q?p:((q.t||0)>(p.t||0)?q:p)});
   return out;
@@ -251,19 +252,20 @@ $('go').onclick=async()=>{
   if(c.length<3){$('err').textContent=t('codeErr');return}
   me.name=n;
   try{
-    const ex=await store.get(c);
+    let ex=await store.get(c);
+    if(ex&&deadRoom(ex)){try{await store.del(c)}catch(e){}ex=null}
     if(mode==='join'){
       if(!ex){$('err').textContent=t('nf');return}
       code=c;me.host=false;room=ex;
-      ex.players[me.id]={name:n,team:'h',t:Date.now()};await store.set(c,ex);
+      ex.players[me.id]={name:n,team:'h',t:Date.now()};ex.hb=ex.hb||{};ex.hb[me.id]=Date.now();await store.set(c,ex);
     }else{
       if(ex){$('err').textContent=t('taken');return}
       code=c;me.host=true;
-      room={host:me.id,radius:350,custom:false,shape:null,zt:0,players:{[me.id]:{name:n,team:'h',t:Date.now()}}};
+      room={host:me.id,radius:350,custom:false,shape:null,zt:0,hb:{[me.id]:Date.now()},players:{[me.id]:{name:n,team:'h',t:Date.now()}}};
       await store.set(c,room);
     }
   }catch(e){$('err').textContent=t('saveErr');return}
-  $('lcode').textContent=code;seen=false;show('lobby');startGps();
+  $('lcode').textContent=code;seen=false;show('lobby');startGps();clearInterval(hbTimer);hbTimer=setInterval(hbTick,30000);
   unsub&&unsub();
   unsub=store.sub(code,d=>{
     if(d){seen=true;if(dragging)return;const m=room?merge(room,d):d;const sj=JSON.stringify(m);if(sj===lastS)return;lastS=sj;room=m;setTimeout(syncGame,0);
@@ -274,7 +276,7 @@ $('go').onclick=async()=>{
   render();
 };
 
-function goHome(){stopGps();$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
+function goHome(){clearInterval(hbTimer);stopGps();$('seen').style.display='none';outSince=0;oobHide();clearInterval(gtimer);clearInterval(ptimer);unsub&&unsub();unsub=null;room=null;code='';seen=false;show('home')}
 
 async function mutate(fn){
   if(!room)return;
@@ -297,6 +299,7 @@ function render(){
   ch.appendChild(chip(t('custom'),!!sh,openDraw));
   $('th').innerHTML='';$('ts').innerHTML='';
   Object.entries(room.players).forEach(([id,p])=>{if(p.left)return;
+    if(id!==me.id&&room.hb&&room.hb[id]&&Date.now()-room.hb[id]>90000)return;
     const d=document.createElement('div');
     const mov=me.host||id===me.id;
     d.className='pl'+(id===me.id?' me':'')+(mov?' mov':'');
@@ -581,7 +584,20 @@ $('start').onclick=()=>{
   const c=(S&&S.orig)||(gpos?{lat:gpos.lat,lon:gpos.lon}:null);
   mutate(x=>{Object.values(x.players).forEach(p=>{delete p.lost;delete p.caught;p.t=Date.now()});x.game={on:true,t:Date.now(),c,dur:room.dur||30,sr:room.sr||70}});
 };
-let lastReqT=0,kickId=null,lastPush=null;
+let lastReqT=0,kickId=null,lastPush=null,hbTimer=null;
+function deadRoom(r){const h=r.hb&&r.hb[r.host];return !h||Date.now()-h>300000}
+function hbTick(){
+  if(!room||!code||document.hidden)return;
+  const now=Date.now();
+  mutate(x=>{
+    x.hb=x.hb||{};x.hb[me.id]=now;
+    if(me.host&&!(x.game&&x.game.on)){
+      Object.entries(x.players).forEach(([id,p])=>{
+        if(id!==me.id&&!p.left&&x.hb[id]&&now-x.hb[id]>90000)x.players[id]={name:p.name,team:p.team,left:true,t:now};
+      });
+    }
+  });
+}
 function openKick(id,name){kickId=id;$('kickT').textContent=t('kickQ').replace('{n}',name);$('kickM').style.display='flex'}
 function kickCheck(){const mp=room&&room.players[me.id];if(mp&&mp.kicked&&!me.host){toast(t('kicked'));goHome()}}
 $('kNo').onclick=()=>{$('kickM').style.display='none'};
@@ -656,6 +672,7 @@ $('leave').onclick=async()=>{
 window.addEventListener('pagehide',()=>{if(me.host&&code)try{store.del(code)}catch(e){}});
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){stopGps();return}
+  hbTick();
   const c=document.querySelector('.scr.on'),sc=c&&c.id;
   if(sc==='game'||sc==='draw'||(sc==='lobby'&&me.host))startGps();
 });
